@@ -15,8 +15,11 @@ IDXGISwapChain *swapchain;
 ID3D11Device *dev;
 ID3D11DeviceContext *devcon;
 ID3D11RenderTargetView* backbuffer;
+ID3D11VertexShader *pVS;
+ID3D11PixelShader *pPS;
 
 void InitD3D(HWND hWnd);
+void InitPipeline();
 void RenderFrame(void);
 void CleanD3D(void);
 
@@ -71,6 +74,17 @@ void InitD3D(HWND hWnd)
 
 }
 
+void InitPipeline()
+{
+	ID3D10Blob *VS, *PS;
+	D3DX11CompileFromFile(L"shader.shader", 0, 0, "VShader", "vs_4_0", 0, 0, 0, &VS, 0, 0);
+	D3DX11CompileFromFile(L"shader.shader", 0, 0, "PShader", "ps_4_0", 0, 0, 0, &PS, 0, 0);
+	dev->CreateVertexShader(VS->GetBufferPointer(), VS->GetBufferSize(), NULL, &pVS);
+	dev->CreatePixelShader(PS->GetBufferPointer(), PS->GetBufferSize(), NULL, &pPS);
+	devcon->VSSetShader(pVS, 0, 0);
+	devcon->PSSetShader(pPS, 0, 0);
+}
+
 // this is the function used to render a single frame
 void RenderFrame(void)
 {
@@ -86,6 +100,8 @@ void RenderFrame(void)
 void CleanD3D(void)
 {
 	swapchain->SetFullscreenState(FALSE, NULL);
+	pVS->Release();
+	pPS->Release();
 	swapchain->Release();
 	backbuffer->Release();
 	dev->Release();
