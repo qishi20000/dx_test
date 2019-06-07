@@ -4,6 +4,9 @@
 #include <d3dx11.h>
 #include <d3dx10.h>
 
+#define SCREAN_WIDTH 800
+#define SCREAN_HEIGHT 600
+
 #pragma comment (lib,"d3d11.lib")
 #pragma comment (lib,"d3dx11.lib")
 #pragma comment (lib,"d3dx10.lib")
@@ -23,10 +26,13 @@ void InitD3D(HWND hWnd)
 	ZeroMemory(&scd, sizeof(DXGI_SWAP_CHAIN_DESC));
 	scd.BufferCount = 1;
 	scd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	scd.BufferDesc.Width = SCREAN_WIDTH;
+	scd.BufferDesc.Height = SCREAN_HEIGHT;
 	scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;     // how swap chain to be used
 	scd.OutputWindow = hWnd;
 	scd.SampleDesc.Count = 4;							   // how many multisamples
 	scd.Windowed = TRUE;
+	scd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
 	D3D11CreateDeviceAndSwapChain(NULL,
 		D3D_DRIVER_TYPE_HARDWARE,
@@ -58,8 +64,8 @@ void InitD3D(HWND hWnd)
 
 	viewport.TopLeftX = 0;
 	viewport.TopLeftY = 0;
-	viewport.Width = 800;
-	viewport.Height = 600;
+	viewport.Width = SCREAN_WIDTH;
+	viewport.Height = SCREAN_HEIGHT;
 
 	devcon->RSSetViewports(1, &viewport);
 
@@ -79,6 +85,7 @@ void RenderFrame(void)
 
 void CleanD3D(void)
 {
+	swapchain->SetFullscreenState(FALSE, NULL);
 	swapchain->Release();
 	backbuffer->Release();
 	dev->Release();
@@ -113,12 +120,12 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	wc.lpfnWndProc = WindowProc;
 	wc.hInstance = hInstance;
 	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-	wc.hbrBackground = (HBRUSH)COLOR_WINDOW;
+	//wc.hbrBackground = (HBRUSH)COLOR_WINDOW;
 	wc.lpszClassName = L"WindowClass1";
 
 	// register the window class
 	RegisterClassEx(&wc);
-	RECT wr = { 0,0,500,400 };
+	RECT wr = { 0,0,SCREAN_WIDTH,SCREAN_HEIGHT };
 	AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, false);
 	// create the window and use the result as the handle
 	hWnd = CreateWindowEx(NULL,
