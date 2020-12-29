@@ -4,6 +4,9 @@
 #include <d3dx11.h>
 #include <d3dx10.h>
 
+#define SCREAN_WIDTH 800
+#define SCREAN_HEIGHT 600
+
 #pragma comment (lib,"d3d11.lib")
 #pragma comment (lib,"d3dx11.lib")
 #pragma comment (lib,"d3dx10.lib")
@@ -12,8 +15,14 @@ IDXGISwapChain *swapchain;
 ID3D11Device *dev;
 ID3D11DeviceContext *devcon;
 ID3D11RenderTargetView* backbuffer;
+ID3D11VertexShader *pVS;
+ID3D11PixelShader *pPS;
+ID3D11Buffer* pVBuffer;
+ID3D11InputLayout* pLayout;
 
 void InitD3D(HWND hWnd);
+void InitPipeline();
+void InitGraphics();
 void RenderFrame(void);
 void CleanD3D(void);
 
@@ -23,10 +32,13 @@ void InitD3D(HWND hWnd)
 	ZeroMemory(&scd, sizeof(DXGI_SWAP_CHAIN_DESC));
 	scd.BufferCount = 1;
 	scd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	scd.BufferDesc.Width = SCREAN_WIDTH;
+	scd.BufferDesc.Height = SCREAN_HEIGHT;
 	scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;     // how swap chain to be used
 	scd.OutputWindow = hWnd;
 	scd.SampleDesc.Count = 4;							   // how many multisamples
 	scd.Windowed = TRUE;
+	scd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
 	D3D11CreateDeviceAndSwapChain(NULL,
 		D3D_DRIVER_TYPE_HARDWARE,
@@ -58,10 +70,66 @@ void InitD3D(HWND hWnd)
 
 	viewport.TopLeftX = 0;
 	viewport.TopLeftY = 0;
-	viewport.Width = 800;
-	viewport.Height = 600;
+	viewport.Width = SCREAN_WIDTH;
+	viewport.Height = SCREAN_HEIGHT;
 
 	devcon->RSSetViewports(1, &viewport);
+
+}
+
+struct VERTEX 
+{
+	float x, y, z;
+	D3DXCOLOR Color;
+};
+
+VERTEX OurVertices[] =
+{
+	{0.0f, 0.5f, 0.0f, D3DXCOLOR(1.0f, 0.0f, 0.0f, 1.0f)},
+	{0.45f, -0.5, 0.0f, D3DXCOLOR(0.0f, 1.0f, 0.0f, 1.0f)},
+	{-0.45f, -0.5f, 0.0f, D3DXCOLOR(0.0f, 0.0f, 1.0f, 1.0f)}
+};
+
+D3D11_INPUT_ELEMENT_DESC ied[] =
+{
+	{"POSITION",0,DXGI_FORMAT_R32G32B32_FLOAT,0,0,D3D11_INPUT_PER_VERTEX_DATA,0},
+	{"COLOR",0,DXGI_FORMAT_R32G32B32_FLOAT,0,12,D3D11_INPUT_PER_VERTEX_DATA,0}
+};
+
+void InitGraphics()
+{
+	D3D11_BUFFER_DESC bd;
+	ZeroMemory(&bd, sizeof(bd));
+
+	bd.Usage = D3D11_USAGE_DYNAMIC;
+	bd.ByteWidth = sizeof(VERTEX) * 3;
+	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+
+	dev->CreateBuffer(&bd, NULL, &pVBuffer);
+
+	D3D11_MAPPED_SUBRESOURCE ms;
+	devcon->Map(pVBuffer, NULL, D3D11_MAP_WRITE_DISCARD, NULL, &ms);
+	memcpy(ms.pData, OurVertices, sizeof(OurVertices));
+	devcon->Unmap(pVBuffer, NULL);
+
+
+
+}
+
+void InitPipeline()
+{
+	ID3D10Blob *VS, *PS;
+	HRESULT hr = D3DX11CompileFromFile(L"shader.shader", 0, 0, "VShader", "vs_4_0", 0, 0, 0, &VS, 0, 0);
+	D3DX11CompileFromFile(L"shader.shader", 0, 0, "PShader", "ps_4_0", 0, 0, 0, &PS, 0, 0);
+	dev->CreateVertexShader(VS->GetBufferPointer(), VS->GetBufferSize(), NULL, &pVS);
+	dev->CreatePixelShader(PS->GetBufferPointer(), PS->GetBufferSize(), NULL, &pPS);
+	devcon->VSSetShader(pVS, 0, 0);
+	devcon->PSSetShader(pPS, 0, 0);
+	
+	dev->CreateInputLayout(ied, 2, VS->GetBufferPointer(), VS->GetBufferSize(), &pLayout);
+	devcon->IASetInputLayout(pLayout);
+
 
 }
 
@@ -70,7 +138,11 @@ void RenderFrame(void)
 {
 	// clear the back buffer to a deep blue
 	devcon->ClearRenderTargetView(backbuffer, D3DXCOLOR(0.0f, 0.2f, 0.4f, 1.0f));
-
+	UINT stride = sizeof(VERTEX);
+	UINT offset = 0;
+	devcon->IASetVertexBuffers(0, 1, &pVBuffer, &stride, &offset);
+	devcon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	devcon->Draw(3, 0);
 	// do 3D rendering on the back buffer here
 
 	// switch the back buffer and the front buffer
@@ -79,6 +151,9 @@ void RenderFrame(void)
 
 void CleanD3D(void)
 {
+	swapchain->SetFullscreenState(FALSE, NULL);
+	pVS->Release();
+	pPS->Release();
 	swapchain->Release();
 	backbuffer->Release();
 	dev->Release();
@@ -113,12 +188,12 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	wc.lpfnWndProc = WindowProc;
 	wc.hInstance = hInstance;
 	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-	wc.hbrBackground = (HBRUSH)COLOR_WINDOW;
+	//wc.hbrBackground = (HBRUSH)COLOR_WINDOW;
 	wc.lpszClassName = L"WindowClass1";
 
 	// register the window class
 	RegisterClassEx(&wc);
-	RECT wr = { 0,0,500,400 };
+	RECT wr = { 0,0,SCREAN_WIDTH,SCREAN_HEIGHT };
 	AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, false);
 	// create the window and use the result as the handle
 	hWnd = CreateWindowEx(NULL,
@@ -137,6 +212,8 @@ int WINAPI WinMain(HINSTANCE hInstance,
 				  // display the window on the screen
 	ShowWindow(hWnd, nCmdShow);
 	InitD3D(hWnd);
+	InitPipeline();
+	InitGraphics();
 	// enter the main loop:
 
 	// this struct holds Windows event messages
